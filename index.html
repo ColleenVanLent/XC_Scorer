@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XC Scorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F2F4EF;
+  --card: #FFFFFF;
+  --ink: #18231C;
+  --muted: #5C6B61;
+  --line: #CDD5CE;
+  --flag: #D9560F;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121814; --card: #1B231E; --ink: #E8EEE9; --muted: #9AA79E; --line: #2F3B33; --flag: #FF8A3D;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121814; --card: #1B231E; --ink: #E8EEE9; --muted: #9AA79E; --line: #2F3B33; --flag: #FF8A3D;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1rem/1.45 "Barlow", system-ui, sans-serif;
+  touch-action: manipulation;
+}
+main { max-width: 40rem; margin: 0 auto; padding: 1rem; }
+h2 { font: 600 1.35rem/1.2 "Barlow Condensed", "Arial Narrow", sans-serif; margin: 2rem 0 .5rem; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+
+/* Chute card: the next place to be assigned */
+.chute {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  border-bottom: 3px solid var(--ink); padding-bottom: .75rem; margin-bottom: 1rem;
+}
+.chute .next { font: 700 4.5rem/0.9 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: -.01em; }
+.chute .next small { display: block; font: 500 1rem/1.3 "Barlow", sans-serif; color: var(--muted); letter-spacing: 0; }
+.undo {
+  border: 2px solid var(--ink); background: transparent; border-radius: .5rem;
+  padding: .75rem 1.1rem; font-weight: 600; min-height: 3rem;
+}
+.undo:disabled { opacity: .35; cursor: default; }
+
+/* Team tap targets */
+.teams { display: grid; gap: .75rem; grid-template-columns: repeat(var(--cols, 2), 1fr); }
+.team {
+  border: 0; border-radius: .75rem; padding: 1rem; min-height: 9.5rem; text-align: left;
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--team); color: var(--on-team);
+  transition: transform .06s;
+}
+.team:active { transform: scale(.97); }
+.team:disabled { opacity: .45; cursor: default; }
+.team .name { font: 600 1.4rem/1.1 "Barlow Condensed", "Arial Narrow", sans-serif; overflow-wrap: anywhere; }
+.team .score { font: 700 3rem/1 "Barlow Condensed", "Arial Narrow", sans-serif; }
+.team .meta { font-size: .9rem; opacity: .9; }
+.other {
+  width: 100%; margin-top: .75rem; min-height: 3.25rem;
+  background: transparent; border: 2px dashed var(--muted); border-radius: .75rem; color: var(--muted); font-weight: 600;
+}
+
+/* Standings */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .5rem .25rem; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: .9rem; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; background: var(--team); margin-right: .4rem; vertical-align: -.05rem; border: 1px solid var(--line); }
+.places { color: var(--muted); font-size: .9rem; }
+.places b { color: var(--ink); font-weight: 600; }
+.note { color: var(--muted); font-size: .9rem; margin: .5rem 0 0; }
+
+/* Order of runners */
+.order { display: flex; flex-wrap: wrap; gap: .35rem; }
+.order span {
+  min-width: 2.2rem; padding: .2rem .4rem; border-radius: .35rem; text-align: center;
+  font: 600 .95rem/1.4 "Barlow Condensed", sans-serif; background: var(--team); color: var(--on-team);
+}
+.order span.unlisted { background: transparent; color: var(--muted); border: 1px dashed var(--muted); }
+
+/* Setup */
+details { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+summary { font: 600 1.35rem/1.2 "Barlow Condensed", sans-serif; cursor: pointer; }
+.row { display: flex; gap: .5rem; align-items: center; margin: .6rem 0; }
+.row input[type="text"] {
+  flex: 1; min-width: 0; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--card);
+}
+.row input[type="color"] { width: 3rem; height: 2.6rem; border: 1px solid var(--line); border-radius: .4rem; padding: .15rem; background: var(--card); }
+label.inline { display: flex; gap: .5rem; align-items: center; }
+select { padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--card); }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.actions button { padding: .7rem 1rem; border-radius: .5rem; border: 2px solid var(--ink); background: transparent; font-weight: 600; }
+.actions button.danger { border-color: var(--flag); color: var(--flag); }
+
+/* Saving a count */
+.save { display: flex; gap: .5rem; margin-top: .75rem; }
+.save input { flex: 1; min-width: 0; padding: .7rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--card); }
+.save button { padding: .7rem 1rem; border: 0; border-radius: .5rem; background: var(--ink); color: var(--paper); font-weight: 600; }
+.save button:disabled { opacity: .35; cursor: default; }
+.scroll { overflow-x: auto; }
+#splits td, #splits th { white-space: nowrap; }
+#splits td.now, #splits th.now { font-weight: 600; }
+#splits small { color: var(--muted); font-weight: 400; margin-left: .25rem; }
+
+@media (prefers-reduced-motion: reduce) { .team { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="chute">
+    <div class="next" id="next"></div>
+    <button class="undo" id="undo" type="button">Undo</button>
+  </div>
+
+  <div class="teams" id="teams"></div>
+  <button class="other" id="other" type="button">Runner from another team</button>
+  <div class="save">
+    <input type="text" id="splitname" aria-label="Name for this count">
+    <button type="button" id="save">Save and start next count</button>
+  </div>
+
+  <h2>Standings</h2>
+  <table>
+    <thead><tr><th>Team</th><th>Places</th><th class="num">Score</th></tr></thead>
+    <tbody id="standings"></tbody>
+  </table>
+  <p class="note">Score is the sum of the top five places. The 6th and 7th runners take places and can push other teams back, and the 6th runner breaks ties.</p>
+
+  <h2>Saved counts</h2>
+  <div class="scroll"><table id="splits"></table></div>
+  <p class="note" id="splitsnote"></p>
+
+  <h2>Order so far</h2>
+  <div class="order" id="order"></div>
+
+  <details>
+    <summary>Teams and settings</summary>
+    <div class="row">
+      <label class="inline">Number of teams
+        <select id="count"></select>
+      </label>
+    </div>
+    <div id="editors"></div>
+    <div class="actions">
+      <button type="button" id="newcount">Clear current count</button>
+      <button type="button" id="clearsplits">Delete saved counts</button>
+      <button type="button" id="reset" class="danger">Reset everything</button>
+    </div>
+  </details>
+</main>
+
+<script>
+const KEY = "xc-scorer-v1";
+const PALETTE = ["#6CB4EE", "#FFCB05", "#C8102E", "#1E7B45", "#5B2C83", "#E8641B", "#0F8A8A", "#3A3A3A"];
+const NAMES = ["Skyline", "Team B", "Team C", "Team D", "Team E", "Team F", "Team G", "Team H"];
+const MAX_RUNNERS = 7;
+const SCORERS = 5;
+
+function makeTeams(n, existing = []) {
+  const teams = [];
+  for (let i = 0; i < n; i++) {
+    teams.push(existing[i] || { id: "t" + Date.now().toString(36) + i, name: NAMES[i], color: PALETTE[i] });
+  }
+  return teams;
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+let state = load() || { teams: makeTeams(2), log: [] };
+state.splits = state.splits || [];
+
+// Update teams saved with the old defaults
+const [first, second] = state.teams;
+if (first && first.name === "Team A" && first.color === "#FFCB05") Object.assign(first, { name: "Skyline", color: "#6CB4EE" });
+if (second && second.color === "#00274C") second.color = "#FFCB05";
+
+function textOn(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#111111" : "#FFFFFF";
+}
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+function esc(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function scoreText(t) {
+  if (!t.places.length) return "&ndash;";
+  return t.complete ? `${t.sum}` : `${t.sum}*`;
+}
+
+function compute(log = state.log) {
+  const stats = {};
+  state.teams.forEach(t => stats[t.id] = { ...t, places: [] });
+  const order = [];
+  let place = 0;
+  for (const id of log) {
+    if (id === "other") {
+      place++;
+      order.push({ team: null, place });
+    } else if (stats[id] && stats[id].places.length < MAX_RUNNERS) {
+      place++;
+      stats[id].places.push(place);
+      order.push({ team: stats[id], place });
+    }
+  }
+  const list = Object.values(stats).map(t => {
+    const top = t.places.slice(0, SCORERS);
+    return {
+      ...t,
+      sum: top.reduce((a, b) => a + b, 0),
+      complete: t.places.length >= SCORERS,
+      sixth: t.places[5] ?? Infinity
+    };
+  });
+  return { list, order, place };
+}
+
+function rank(list) {
+  return [...list].sort((a, b) => {
+    if (a.complete !== b.complete) return a.complete ? -1 : 1;
+    if (a.complete) return a.sum - b.sum || a.sixth - b.sixth;
+    return b.places.length - a.places.length || a.sum - b.sum;
+  });
+}
+
+function render() {
+  const { list, order, place } = compute();
+
+  document.getElementById("next").innerHTML = `${ordinal(place + 1)}<small>next runner to pass</small>`;
+  document.getElementById("undo").disabled = state.log.length === 0;
+
+  const teamsEl = document.getElementById("teams");
+  teamsEl.style.setProperty("--cols", state.teams.length <= 2 ? 2 : (window.innerWidth < 480 ? 2 : 3));
+  teamsEl.innerHTML = list.map(t => {
+    const full = t.places.length >= MAX_RUNNERS;
+    const scoreText = t.complete ? t.sum : (t.places.length ? `${t.sum}*` : "0");
+    return `<button type="button" class="team" data-id="${t.id}" ${full ? "disabled" : ""}
+      style="--team:${t.color};--on-team:${textOn(t.color)}"
+      aria-label="Add runner for ${esc(t.name)}">
+      <span class="name">${esc(t.name)}</span>
+      <span class="score">${scoreText}</span>
+      <span class="meta">${full ? "All 7 counted" : `${t.places.length} of 7 counted`}</span>
+    </button>`;
+  }).join("");
+
+  document.getElementById("standings").innerHTML = rank(list).map(t => {
+    const places = t.places.map((p, i) => i < SCORERS ? `<b>${p}</b>` : p).join(", ") || "None yet";
+    const score = t.complete ? t.sum : `${t.sum}* <span class="places">(${t.places.length}/5)</span>`;
+    return `<tr style="--team:${t.color}">
+      <td><span class="swatch"></span>${esc(t.name)}</td>
+      <td class="places">${places}</td>
+      <td class="num">${t.places.length ? score : "&ndash;"}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("order").innerHTML = order.length
+    ? order.map(o => o.team
+        ? `<span style="--team:${o.team.color};--on-team:${textOn(o.team.color)}" title="${esc(o.team.name)}">${o.place}</span>`
+        : `<span class="unlisted" title="Another team">${o.place}</span>`).join("")
+    : `<p class="note">Tap a team as each runner passes.</p>`;
+
+  const nameEl = document.getElementById("splitname");
+  nameEl.placeholder = `Split ${state.splits.length + 1}`;
+  document.getElementById("save").disabled = state.log.length === 0;
+
+  const splitsEl = document.getElementById("splits");
+  const noteEl = document.getElementById("splitsnote");
+  if (!state.splits.length) {
+    splitsEl.innerHTML = "";
+    noteEl.textContent = "Save a count at each spot on the course, like the mile mark, to see how team scores change through the race.";
+  } else {
+    noteEl.textContent = "Each column shows the score and team position at that count.";
+    const cols = state.splits.map(s => ({ label: s.label, list: compute(s.log).list, now: false }));
+    if (state.log.length) cols.push({ label: "Now", list, now: true });
+    cols.forEach(c => {
+      c.byId = {};
+      rank(c.list).forEach((t, i) => c.byId[t.id] = { t, pos: i + 1 });
+    });
+    const head = cols.map(c => `<th class="num${c.now ? " now" : ""}">${esc(c.label)}</th>`).join("");
+    const rows = rank(cols[cols.length - 1].list).map(team => {
+      const cells = cols.map(c => {
+        const r = c.byId[team.id];
+        if (!r) return `<td class="num">&ndash;</td>`;
+        const pos = r.t.places.length ? `<small>${ordinal(r.pos)}</small>` : "";
+        return `<td class="num${c.now ? " now" : ""}">${scoreText(r.t)}${pos}</td>`;
+      }).join("");
+      return `<tr style="--team:${team.color}"><td><span class="swatch"></span>${esc(team.name)}</td>${cells}</tr>`;
+    }).join("");
+    splitsEl.innerHTML = `<thead><tr><th>Team</th>${head}</tr></thead><tbody>${rows}</tbody>`;
+  }
+
+  save();
+}
+
+function renderSetup() {
+  const count = document.getElementById("count");
+  count.innerHTML = [2, 3, 4, 5, 6, 7, 8].map(n => `<option ${n === state.teams.length ? "selected" : ""}>${n}</option>`).join("");
+  document.getElementById("editors").innerHTML = state.teams.map((t, i) => `
+    <div class="row">
+      <input type="color" value="${t.color}" data-i="${i}" data-field="color" aria-label="Color for team ${i + 1}">
+      <input type="text" value="${esc(t.name)}" data-i="${i}" data-field="name" aria-label="Name for team ${i + 1}">
+    </div>`).join("");
+}
+
+document.getElementById("teams").addEventListener("click", e => {
+  const btn = e.target.closest(".team");
+  if (!btn || btn.disabled) return;
+  state.log.push(btn.dataset.id);
+  if (navigator.vibrate) navigator.vibrate(15);
+  render();
+});
+document.getElementById("other").addEventListener("click", () => {
+  state.log.push("other");
+  if (navigator.vibrate) navigator.vibrate(15);
+  render();
+});
+document.getElementById("undo").addEventListener("click", () => {
+  state.log.pop();
+  render();
+});
+document.getElementById("count").addEventListener("change", e => {
+  const n = Number(e.target.value);
+  state.teams = makeTeams(n, state.teams.slice(0, n));
+  const ids = new Set(state.teams.map(t => t.id));
+  state.log = state.log.filter(id => id === "other" || ids.has(id));
+  renderSetup();
+  render();
+});
+document.getElementById("editors").addEventListener("input", e => {
+  const i = e.target.dataset.i;
+  if (i === undefined) return;
+  const value = e.target.value;
+  state.teams[i][e.target.dataset.field] = e.target.dataset.field === "name" ? (value || `Team ${Number(i) + 1}`) : value;
+  render();
+});
+
+function confirmTap(btn, label, action) {
+  if (btn.dataset.armed) {
+    delete btn.dataset.armed;
+    btn.textContent = label;
+    action();
+    return;
+  }
+  btn.dataset.armed = "1";
+  btn.textContent = "Tap again to confirm";
+  setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 3000);
+}
+document.getElementById("save").addEventListener("click", () => {
+  if (!state.log.length) return;
+  const input = document.getElementById("splitname");
+  const label = input.value.trim() || `Split ${state.splits.length + 1}`;
+  state.splits.push({ label, log: [...state.log] });
+  state.log = [];
+  input.value = "";
+  render();
+});
+document.getElementById("newcount").addEventListener("click", e => {
+  confirmTap(e.currentTarget, "Clear current count", () => { state.log = []; render(); });
+});
+document.getElementById("clearsplits").addEventListener("click", e => {
+  confirmTap(e.currentTarget, "Delete saved counts", () => { state.splits = []; render(); });
+});
+document.getElementById("reset").addEventListener("click", e => {
+  confirmTap(e.currentTarget, "Reset everything", () => {
+    state = { teams: makeTeams(2), log: [], splits: [] };
+    renderSetup();
+    render();
+  });
+});
+window.addEventListener("resize", render);
+
+renderSetup();
+render();
+</script>
+</body>
+</html>
