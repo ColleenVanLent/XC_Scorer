@@ -194,9 +194,9 @@ let state = load() || { teams: makeTeams(2), log: [] };
 state.splits = state.splits || [];
 
 // Update teams saved with the old defaults
-const [first, second] = state.teams;
-if (first && first.name === "Team A" && first.color === "#FFCB05") Object.assign(first, { name: "Skyline", color: "#6CB4EE" });
-if (second && second.color === "#00274C") second.color = "#FFCB05";
+// const [first, second] = state.teams;
+// if (first && first.name === "Team A" && first.color === "#FFCB05") Object.assign(first, { name: "Skyline", color: "#6CB4EE" });
+// if (second && second.color === "#00274C") second.color = "#FFCB05";
 
 function textOn(hex) {
   const n = parseInt(hex.slice(1), 16);
