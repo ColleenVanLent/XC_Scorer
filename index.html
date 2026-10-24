@@ -72,7 +72,7 @@ button { cursor: pointer; }
 .team .score { font: 700 3rem/1 "Barlow Condensed", "Arial Narrow", sans-serif; }
 .team .meta { font-size: .9rem; opacity: .9; }
 .other {
-  width: 100%; margin-top: .75rem; min-height: 3.25rem;
+  width: 100%; margin-top: .75rem; min-height: 5.5rem; font-size: 1.25rem;
   background: transparent; border: 2px dashed var(--muted); border-radius: .75rem; color: var(--muted); font-weight: 600;
 }
 
@@ -89,10 +89,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* Order of runners */
 .order { display: flex; flex-wrap: wrap; gap: .35rem; }
 .order span {
-  min-width: 2.2rem; padding: .2rem .4rem; border-radius: .35rem; text-align: center;
+  min-width: 2.75rem; padding: .45rem .5rem; border-radius: .35rem; text-align: center;
+  cursor: grab; user-select: none; -webkit-user-select: none;
   font: 600 .95rem/1.4 "Barlow Condensed", sans-serif; background: var(--team); color: var(--on-team);
 }
 .order span.unlisted { background: transparent; color: var(--muted); border: 1px dashed var(--muted); }
+.order .sortable-chosen { outline: 3px solid var(--flag); outline-offset: 1px; }
+.order .sortable-ghost { opacity: .3; }
 
 /* Setup */
 details { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
@@ -148,6 +151,7 @@ select { padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; ba
 
   <h2>Order so far</h2>
   <div class="order" id="order"></div>
+  <p class="note">Made a mistake? Press and hold a number, then drag it to the right spot. Places and scores update when you let go.</p>
 
   <details>
     <summary>Teams and settings</summary>
@@ -165,10 +169,11 @@ select { padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; ba
   </details>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script>
 const KEY = "xc-scorer-v1";
 const PALETTE = ["#6CB4EE", "#FFCB05", "#C8102E", "#1E7B45", "#5B2C83", "#E8641B", "#0F8A8A", "#3A3A3A"];
-const NAMES = ["Team A", "Team B", "Team C", "Team D", "Team E", "Team F", "Team G", "Team H"];
+const NAMES = ["Skyline", "Team B", "Team C", "Team D", "Team E", "Team F", "Team G", "Team H"];
 const MAX_RUNNERS = 7;
 const SCORERS = 5;
 
@@ -194,9 +199,9 @@ let state = load() || { teams: makeTeams(2), log: [] };
 state.splits = state.splits || [];
 
 // Update teams saved with the old defaults
-// const [first, second] = state.teams;
-// if (first && first.name === "Team A" && first.color === "#FFCB05") Object.assign(first, { name: "Skyline", color: "#6CB4EE" });
-// if (second && second.color === "#00274C") second.color = "#FFCB05";
+const [first, second] = state.teams;
+if (first && first.name === "Team A" && first.color === "#FFCB05") Object.assign(first, { name: "Skyline", color: "#6CB4EE" });
+if (second && second.color === "#00274C") second.color = "#FFCB05";
 
 function textOn(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -222,14 +227,14 @@ function compute(log = state.log) {
   state.teams.forEach(t => stats[t.id] = { ...t, places: [] });
   const order = [];
   let place = 0;
-  for (const id of log) {
+  for (const [i, id] of log.entries()) {
     if (id === "other") {
       place++;
-      order.push({ team: null, place });
+      order.push({ team: null, place, i });
     } else if (stats[id] && stats[id].places.length < MAX_RUNNERS) {
       place++;
       stats[id].places.push(place);
-      order.push({ team: stats[id], place });
+      order.push({ team: stats[id], place, i });
     }
   }
   const list = Object.values(stats).map(t => {
@@ -284,8 +289,8 @@ function render() {
 
   document.getElementById("order").innerHTML = order.length
     ? order.map(o => o.team
-        ? `<span style="--team:${o.team.color};--on-team:${textOn(o.team.color)}" title="${esc(o.team.name)}">${o.place}</span>`
-        : `<span class="unlisted" title="Another team">${o.place}</span>`).join("")
+        ? `<span data-i="${o.i}" style="--team:${o.team.color};--on-team:${textOn(o.team.color)}" title="${esc(o.team.name)}">${o.place}</span>`
+        : `<span data-i="${o.i}" class="unlisted" title="Another team">${o.place}</span>`).join("")
     : `<p class="note">Tap a team as each runner passes.</p>`;
 
   const nameEl = document.getElementById("splitname");
@@ -397,6 +402,20 @@ document.getElementById("reset").addEventListener("click", e => {
   });
 });
 window.addEventListener("resize", render);
+
+if (window.Sortable) {
+  Sortable.create(document.getElementById("order"), {
+    draggable: "span",
+    animation: 150,
+    delay: 150,
+    delayOnTouchOnly: true,
+    onEnd: e => {
+      if (e.oldIndex === e.newIndex) return;
+      state.log = [...e.to.querySelectorAll("span")].map(s => state.log[s.dataset.i]);
+      render();
+    }
+  });
+}
 
 renderSetup();
 render();
